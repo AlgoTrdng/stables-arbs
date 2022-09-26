@@ -2,7 +2,7 @@
 	"compilerOptions": {
 		"lib": ["ES2021"],
 		"target": "esnext",
-		"module": "module",
+		"module": "ESNext",
 		"strict": true,
 		"esModuleInterop": true,
 		"skipLibCheck": true,
