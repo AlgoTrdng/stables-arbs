@@ -14,7 +14,7 @@ export const jupiter = await Jupiter.load({
 
 const jsbiToNumber = (num: JSBI) => Number(num.toString())
 
-type JupiterRouteParams = {
+export type JupiterRouteParams = {
 	inToken: Token
 	outToken?: Token
 	amountRaw: number

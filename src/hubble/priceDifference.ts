@@ -1,24 +1,24 @@
-import { hubbleConfig } from '../constants.js'
-import { calculateJupiterPrice, fetchJupiterRoute } from '../jupiter.js'
-import { round, toRaw } from '../utils/amountHelpers.js'
+import { ArbitrageType } from '../constants.js'
+import { calculateJupiterPrice, fetchJupiterRoute, JupiterRouteParams } from '../jupiter.js'
+import { round } from '../utils/amountHelpers.js'
 
-type ArbitrageType = 'redeem' | 'mint'
+const jupiterParams: Record<ArbitrageType, Omit<JupiterRouteParams, 'amountRaw'>> = {
+	redeem: {
+		inToken: 'USDC',
+		outToken: 'USDH',
+	},
+	mint: {
+		inToken: 'USDH',
+	},
+}
 
 const fetchJupiterPrice = async (type: ArbitrageType, amountRaw: number, forceFetch = false) => {
-	const jupiterRouteData = await fetchJupiterRoute(
-		type === 'redeem'
-			? {
-					inToken: 'USDC',
-					outToken: 'USDH',
-					forceFetch,
-					amountRaw,
-			  }
-			: {
-					inToken: 'USDH',
-					forceFetch,
-					amountRaw,
-			  },
-	)
+	const params = {
+		...jupiterParams[type],
+		forceFetch,
+		amountRaw,
+	}
+	const jupiterRouteData = await fetchJupiterRoute(params)
 	return (
 		jupiterRouteData &&
 		calculateJupiterPrice(jupiterRouteData, {
@@ -31,48 +31,28 @@ const fetchJupiterPrice = async (type: ArbitrageType, amountRaw: number, forceFe
 type FetchPriceDiffParams = {
 	hubblePrice: number
 	amountRaw: number
-	forceFetch?: boolean
-	type: ArbitrageType
+	i: number
 }
 
-const fetchDiff = async ({
+export const getHigherPriceDiff = async ({
 	hubblePrice,
 	amountRaw,
-	type,
-	forceFetch = false,
+	i,
 }: FetchPriceDiffParams) => {
-	const jupiterPrice = await fetchJupiterPrice(type, amountRaw, forceFetch)
-	return jupiterPrice && round(jupiterPrice / hubblePrice - 1, 6)
-}
-
-export const fetchPriceDifference = async (amounts: number[]) => {
-	const hubblePrice = {
-		redeem: 1 / (1 - hubbleConfig.burnFee),
-		mint: 1 / (1 - hubbleConfig.mintFee),
-	}
-
-	const execute = async (i: number) => {
-		const amountRaw = toRaw(amounts[i])
-		return {
-			redeem: await fetchDiff({
-				hubblePrice: hubblePrice.redeem,
-				type: 'redeem',
-				forceFetch: i === 0,
-				amountRaw,
-			}),
-			mint: await fetchDiff({
-				hubblePrice: hubblePrice.redeem,
-				type: 'mint',
-				amountRaw,
-			}),
+	const execute = async (type: ArbitrageType) => {
+		const jupiterPrice = await fetchJupiterPrice(type, amountRaw, i === 0) 
+		if (!jupiterPrice) {
+			return -100
 		}
+		return round(jupiterPrice / hubblePrice - 1, 6)
 	}
 
-	let priceDiffs = await execute(0)
+	const redeemPriceDiff = await execute(ArbitrageType.Redeem)
+	const mintPriceDiff = await execute(ArbitrageType.Mint)
 
-	for (let i = 1; i < amounts.length; i++) {
-		priceDiffs = await execute(i)
+	if (Math.max(redeemPriceDiff, mintPriceDiff, 0.05) === 0.05) {
+		return null
 	}
 
-	console.log(priceDiffs)
+	return redeemPriceDiff > mintPriceDiff ? ArbitrageType.Redeem : ArbitrageType.Mint
 }
