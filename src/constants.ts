@@ -1,6 +1,6 @@
 import { Connection, PublicKey } from '@solana/web3.js'
 
-import { PSM_RESERVER_ACCOUNT_LAYOUT } from './layouts/hubble.js'
+import { PSM_RESERVER_ACCOUNT_LAYOUT } from './hubble/layouts.js'
 
 export const connection = new Connection('https://ssc-dao.genesysgo.net/')
 
@@ -18,10 +18,18 @@ const fetchHubblePsmFees = async () => {
 		accountInfo.data.slice(ANCHOR_ACCOUNT_DISCRIMINATOR),
 	)
 	const { mintFeeBps, burnFeeBps } = decoded
+	const denominator = 10000
 	return {
-		mintFee: Number(mintFeeBps) / 100,
-		burnFee: Number(burnFeeBps) / 100,
+		mintFee: Number(mintFeeBps) / denominator,
+		burnFee: Number(burnFeeBps) / denominator,
 	}
 }
 
 export const hubbleConfig = await fetchHubblePsmFees()
+
+export const Mints = {
+	USDC: new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'),
+	USDH: new PublicKey('USDH1SM1ojwWUga67PGrgFWUHibbjqMvuMaDkRJTgkX'),
+	USH: new PublicKey('9iLH8T7zoWhY7sBmj1WK9ENbWdS1nL8n9wAxaeRitTa6'),
+}
+export type Token = keyof typeof Mints
