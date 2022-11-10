@@ -18,7 +18,7 @@ const fetchHubblePsmFees = async () => {
 	const denominator = 10000
 	return {
 		mintFee: Number(mintFeeBps) / denominator,
-		burnFee: Number(burnFeeBps) / denominator,
+		redeemFee: Number(burnFeeBps) / denominator,
 	}
 }
 

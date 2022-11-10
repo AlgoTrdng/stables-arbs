@@ -2,35 +2,77 @@ import { Jupiter } from '@jup-ag/core'
 import { PublicKey } from '@solana/web3.js'
 import JSBI from 'jsbi'
 
-import { solPublicKey } from './config.js'
-import { connection, Mints, Token } from './constants.js'
+import { SOL_PUBLIC_KEY } from './config.js'
+import { ArbitrageType, connection, Exchange, Mints, Token } from './constants.js'
 import { round } from './utils/amountHelpers.js'
 
 export const jupiter = await Jupiter.load({
 	cluster: 'mainnet-beta',
-	user: new PublicKey(solPublicKey),
+	user: new PublicKey(SOL_PUBLIC_KEY),
 	connection,
 })
 
 const jsbiToNumber = (num: JSBI) => Number(num.toString())
 
-export type JupiterRouteParams = {
+type JupiterPriceAmounts = {
+	inAmountRaw: number
+	outAmountRaw: number
+}
+
+export const calculateJupiterPrice = (
+	amounts: JupiterPriceAmounts,
+) => {
+	const { inAmountRaw, outAmountRaw } = amounts
+	const input = inAmountRaw / 10 ** 6
+	const output = outAmountRaw / 10 ** 6
+	return round(output / input, 6)
+}
+
+export type RouteTokens = {
 	inToken: Token
 	outToken?: Token
+}
+
+const params: Record<Exchange, Record<ArbitrageType, RouteTokens>> = {
+	hubble: {
+		redeem: {
+			inToken: 'USDC',
+			outToken: 'USDH',
+		},
+		mint: {
+			inToken: 'USDH',
+		},
+	},
+	hedge: {
+		redeem: {
+			inToken: 'USDC',
+			outToken: 'USH',
+		},
+		mint: {
+			inToken: 'USH',
+		},
+	},
+}
+
+type FetchJupiterPriceParams = {
+	type: ArbitrageType
+	exchange: Exchange
 	amountRaw: number
 	forceFetch?: boolean
 }
 
-export const fetchJupiterRoute = async ({
-	inToken,
+export const fetchJupiterPrice = async ({
+	type,
+	exchange,
 	amountRaw,
-	outToken = 'USDC',
-	forceFetch = false,
-}: JupiterRouteParams) => {
+	forceFetch,
+}: FetchJupiterPriceParams) => {
+	const { inToken, outToken } = params[exchange][type]
+
 	try {
 		const { routesInfos } = await jupiter.computeRoutes({
 			inputMint: Mints[inToken],
-			outputMint: Mints[outToken],
+			outputMint: Mints[outToken || 'USDC'],
 			amount: JSBI.BigInt(amountRaw),
 			slippage: 5,
 			forceFetch,
@@ -41,30 +83,13 @@ export const fetchJupiterRoute = async ({
 		}
 		const [bestRoute] = routesInfos
 		const { inAmount, outAmount } = bestRoute
-		return { inAmountRaw: jsbiToNumber(inAmount), outAmountRaw: jsbiToNumber(outAmount) }
+		const inAmountRaw = jsbiToNumber(inAmount) / 10 ** 6
+		const outAmountRaw = jsbiToNumber(outAmount) / 10 ** 6
+
+		const price = calculateJupiterPrice({ inAmountRaw, outAmountRaw })
+		return price
 	} catch (error) {
 		console.error(error)
 		return null
 	}
-}
-
-type JupiterPriceAmounts = {
-	inAmountRaw: number
-	outAmountRaw: number
-}
-
-type JupiterPriceDecimals = {
-	inDecimals: number
-	outDecimals: number
-}
-
-export const calculateJupiterPrice = (
-	amounts: JupiterPriceAmounts,
-	decimals: JupiterPriceDecimals,
-) => {
-	const { inAmountRaw, outAmountRaw } = amounts
-	const { inDecimals, outDecimals } = decimals
-	const input = inAmountRaw / 10 ** inDecimals
-	const output = outAmountRaw / 10 ** outDecimals
-	return round(output / input, 6)
 }
